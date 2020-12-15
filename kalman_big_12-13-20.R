@@ -1,4 +1,14 @@
 
+###########################################
+######################
+##################
+# This code sets up data for stan and executes the stan model
+# For years 1974 - 2013
+###########################################
+##############################################################################
+#######################################################################
+###################################################################
+### Required Libraries
 library(knitr)
 library(tidyverse)
 library(rstan)
@@ -7,18 +17,27 @@ library(pscl)
 library(kableExtra)
 library(shinystan)
 library(ggcorrplot)
-
+##############################################################################
+#######################################################################
+###################################################################
+### Read in data
 fed = read_csv("fed_agency_capacity_autonomy.csv")
-
+##############################################################################
+#######################################################################
+###################################################################
 # Model for reference
-# capacity =~ mission_pct + mission_pct^2 + LOSavg + AIN_pct + LST_pct + med_sal_ + gini
-# Clean up the data a bit, get rid of agencies with med salary = 0 and employees less than 5
+# capacity =~ logn + logMA_pct + LOSavg + logAIN_pct + logLST_pct + med_sal_ + gini
 
+##############################################################################
+#######################################################################
+###################################################################
+# Data cleaning
+# Get rid of agencies with med salary = 0 and employees less than 5
+# Make log transforms
 set.seed(9876)
 df = fed %>%
   filter(yr != 1973) %>%
   filter(yr >= 1974) %>%
-  filter(yr < 2014) %>% 
   filter(med_sal_ > 0) %>% 
   filter(n > 5) %>%
   drop_na(med_sal_) %>%
@@ -30,10 +49,12 @@ df = fed %>%
   mutate(logPHDpct = log(doc_pct + 1)) %>%
   mutate(logn = log(n)) 
 
-years = 1975:2013
+years = 1974:2013
 
 regressors = c("n", "med_sal_", "LOSavg", "ma_pct", "AIN_pct", "LST_pct", "gini")
 
+# Select regressors and scale them
+# Drop missing years temporarily
 dff = df %>%
   filter(yr %in% years) %>%
   select(regressors, yr, AGYSUB, agy_typ) %>%
@@ -41,6 +62,7 @@ dff = df %>%
   mutate(yr = as.factor(yr)) %>%
   drop_na()
 
+# This gets agency data start and end years
 dff = dff %>%
   mutate(year = as.integer(as.factor(yr))) %>%
   group_by(AGYSUB) %>%
@@ -48,6 +70,8 @@ dff = dff %>%
   mutate(maxyear = max(year)) %>%
   ungroup()
 
+
+# This section removes agencies where a random year in the middle is missing
 dff = dff %>%
   arrange(AGYSUB)
 
@@ -57,7 +81,7 @@ dff = dff %>%
   ungroup()
 
 dff = dff %>%
-  mutate(missingyear = ifelse(nobs != maxyear - minyear + 1, 1, 0)) %>%
+  mutate(missingyear = ifelse(nobs != maxyear - minyear + 1, 1, 0)) %>% 
   filter(missingyear == 0) ### Removes 16 agencies 
 
 dff = dff %>%
@@ -65,7 +89,19 @@ dff = dff %>%
   complete(nesting(AGYSUB), year) %>%
   mutate(agency = as.integer(AGYSUB))
 
-z = array(0, dim=c(length(unique(dff$AGYSUB)), length(years), length(regressors))) ### array[agency, time, indicator]
+##############################################################################
+#######################################################################
+###################################################################
+##############################################################################
+#######################################################################
+###################################################################
+# The following section makes the stan data
+# z puts the puts dff into an array form
+# Basically, for the 180 agencies, there is a time by indicator matrix
+
+
+z = array(0, dim=c(length(unique(dff$AGYSUB)), length(years), length(regressors))) 
+# array[agency, time, indicator]
 
 for (i in 1:length(unique(dff$AGYSUB))) {
   for (t in 1:length(years)) {
@@ -80,6 +116,7 @@ for (i in 1:length(unique(dff$AGYSUB))) {
   
 }
 
+# Turn missing years to 0 because stan doesnt accept na (these won't actually get used)
 z[is.na(z)] = 0
 
 cap.data = list(M = length(unique(dff$AGYSUB)), Time = length(years), z = z)
@@ -90,6 +127,7 @@ cap.data$J = length(regressors)
 
 cap.data$which_pos = 1
 
+# Create vectors with agency starting and ending times
 cap.data$start_time = dff %>%
   group_by(AGYSUB) %>%
   drop_na() %>%
@@ -108,8 +146,21 @@ cap.data$end_time = dff %>%
 
 cap.data$end_time = cap.data$end_time$maxyear
 
+##############################################################################
+#######################################################################
+###################################################################
+
+# Run the model
+
 options(mc.cores = detectCores())
-kalman.test = stan(file = "kalman.stan", data = cap.data, iter = 4000)
+kalman.test = stan(file = "kalman.stan", data = cap.data, iter = 10000, seed = 9495)
+
+save(kalman.test, file = "kalmanfinal")
+
+##############################################################################
+#######################################################################
+###################################################################
+
 
 load("bigkalman5")
 

@@ -37,7 +37,7 @@ The capacity of a bureaucratic agency, or its resources and professionalization,
 
 ## Data
 
-The ensuing analysis uses personnel data from all federal agencies from 1973 to 2019. The data set contains uniquely identified information (such as education level and salary) for individual federal employees. These data not only allow us to calculate aggregate measures (such as the median salary of an agency), but it also allows us to see when an agency exudes and absorbs employees to and from other agencies. The data come from the U.S. Office of Personnel Management and were made publicly available by BuzzFeed News [@buzz].     
+The ensuing analysis uses personnel data from all federal agencies from 1973 to 2013. The data set contains uniquely identified information (such as education level and salary) for individual federal employees. These data not only allow us to calculate aggregate measures (such as the median salary of an agency), but it also allows us to see when an agency exudes and absorbs employees to and from other agencies. The data come from the U.S. Office of Personnel Management and were made publicly available by BuzzFeed News [@buzz].     
 
 We use the individual data create aggregate measures for each agency for each year. The main agency level variables related to capacity are:
 
@@ -51,7 +51,7 @@ We use the individual data create aggregate measures for each agency for each ye
 
 ## Exploratory Analysis
 
-
+Summary statistics for the capacity indicators by the type of agency are shown in Table 1. Agency types are assigned based on their primary spending patterns. For example, the Environmental Protection Agency (EPA) allocates a majority of its budget to "Natural Resources and Environment" and is categorized accordingly. As we see in the table, the type with the highest number of different agencies is Education. Across time, health agencies employed to highest number of people on average. National defense agencies had the highest median salary across years. General science and basic research employed the highest percentage of people with a Master's Degree or higher level of education. Crime, Law Enforcement, and Incarceration the highest (as a percentage of agency employment) average requisitioning rate from other agencies. General Government agencies lost the highest percentage of agency employment on average over the years. Average lengths of service and gini coefficient were similar across agency types.  
 
 ```{r}
 
@@ -77,9 +77,51 @@ df = fed %>%
   mutate(Environmental = ifelse(AGYSUB == "EP00", 2, Environmental)) %>%
   mutate(Environmental = as.factor(Environmental))
 
-sumdf = df %>% 
+regressors = c("n", "med_sal_", "LOSavg", "ma_pct", "AIN_pct", "LST_pct", "gini")
+
+# Select regressors and scale them
+# Drop missing years temporarily
+dff = df %>%
+  select(regressors, yr, AGYSUB, agy_typ) %>%
+  mutate(yr = as.factor(yr)) %>%
+  drop_na()
+
+# This gets agency data start and end years
+dff = dff %>%
+  mutate(year = as.integer(as.factor(yr))) %>%
+  group_by(AGYSUB) %>%
+  mutate(minyear = min(year)) %>%
+  mutate(maxyear = max(year)) %>%
+  ungroup()
+
+
+# This section removes agencies where a random year in the middle is missing
+dff = dff %>%
+  arrange(AGYSUB)
+
+dff = dff %>%
+  group_by(AGYSUB) %>%
+  mutate(nobs = n()) %>%
+  ungroup()
+
+dff = dff %>%
+  mutate(missingyear = ifelse(nobs != maxyear - minyear + 1, 1, 0)) %>% 
+  filter(missingyear == 0) ### Removes 16 agencies 
+
+dff = dff %>%
+  mutate(AGYSUB = as.factor(AGYSUB)) %>%
+  complete(nesting(AGYSUB), year) %>%
+  mutate(agency = as.integer(AGYSUB)) %>%
+  drop_na()
+
+sumdf = dff %>%
+  select(regressors, yr, AGYSUB, agy_typ) %>%
+  mutate(yr = as.factor(yr)) %>%
+  mutate(AGYSUB = as.factor(AGYSUB)) %>%
+  mutate(agency = as.integer(AGYSUB)) %>%
+  drop_na() %>%
   group_by(agy_typ) %>%
-  summarise("N Agencies" = n(),
+  summarise("N Agencies" = length(unique(agency)),
             Mean1 = mean(n), SD1 = sd(n),
             Mean2 = mean(med_sal_), SD2 = sd(med_sal_),
             Mean3 = mean(LOSavg), SD3 = sd(LOSavg),
@@ -102,6 +144,7 @@ kbl(sumdf, booktabs = T, linesep = "", caption = "Summary Statistics of Capacity
                      "Gini" = 2))
 
 ```
+
 
 ```{r}
 
@@ -145,7 +188,10 @@ dfff = dff %>%
   mutate(Variable = ifelse(Variable == "n", "Number of Employees", Variable)) %>%
   mutate(Variable = ifelse(Variable == "AIN_pct", "Percent Employees Gained", Variable)) %>%
   mutate(Variable = ifelse(Variable == "LST_pct", "Percent Employees Lost", Variable)) %>%
-  mutate(Variable = ifelse(Variable == "ma_pct", "Percent have Master's Degree", Variable))
+  mutate(Variable = ifelse(Variable == "ma_pct", "Percent have Master's Degree", Variable)) %>%
+  mutate(Variable = ifelse(Variable == "med_sal_", "Median Salary", Variable)) %>%
+  mutate(Variable = ifelse(Variable == "LOSavg", "Length of Service", Variable)) %>%
+  mutate(Variable = ifelse(Variable == "gini", "Gini Coefficient", Variable))
   
 
 dfff %>%
@@ -162,7 +208,15 @@ dfff %>%
 
 ```
 
-```{r, fig.height=10, fig.width=8}
+Figure 1 displays density plots for each of the capacity indicators. For comparable scaling, these data were standardized. Figure 1 also displays the log transformation of the percentage variables and employee count (in blue). Each of these log transformations help reduce skewness. We carry these log transformations through the subsequent analyses. Overall, the seven indicators are reasonably close to a normal distribution. 
+
+Figure 2 displays the trends of the capacity indicators over time for all agencies. Environmental agencies are highlighted in green and the EPA is highlighted in red. We see that within agency employment for environmental agencies has stayed relatively constant. We see that median salaries have a slightly upward trend (although these are not inflation adjusted). The average length of service within environmental agencies is increasing over time. 
+
+We see that environmental agencies lose more employees (either to other agencies or other sectors) at a faster rate than they gain employees from other agencies. For the EPA, we see that the gini coefficient decreases over the past 40 years. Because the average length of service and median salary has been increasing over time with the number of employees relatively constant, this declining gini coefficient may signal a sort of hiring freeze. In other words, the higher observed median salary and lower gini coefficient could be caused by a declining rate of new entry level hires.   
+
+Lastly, the correlations between the capacity indicators are checked in Figure 3. We see that a number of the indicators are moderately strong correlations. The strongest positive correlation is between median salary and the percentage of employees with a Master's degree or higher, which makes intuitive sense. The strongest negative correlation is between median salary and the gini coefficient. 
+
+```{r, fig.height=8.5, fig.width=9}
 
 fed = read_csv("fed_agency_capacity_autonomy.csv")
 
@@ -244,7 +298,7 @@ f = ggplot() +
   geom_line(aes(x = yr, y = logLST_pct, group = AGYSUB), data = df3, size = 1.5, color = "orangered1") +
   theme_bw()+ 
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),panel.background = element_rect(fill = "white")) +
-  ggtitle("log(% Employees Lost to Other Agencies)") +
+  ggtitle("log(% Employees Lost to Other Agencies, Sectors)") +
   xlab("") + ylab("") + theme(plot.title = element_text(size=10))
 
 g = ggplot() +
