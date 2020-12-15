@@ -9,7 +9,7 @@ data {
 }
 parameters {
   vector[J] alpha;
-  vector<lower=0>[J] beta;
+  vector[J] beta;
   vector<lower=0>[J] sigma;
   real x_start_mean;
   real<lower=0> x_start_sd;
@@ -46,7 +46,7 @@ model {
   change_sd ~ cauchy(0, 2.5);
 }
 generated quantities {
-  vector[J] beta_standardized;
+  //vector[J] beta_standardized = beta;
   matrix[M, Time] x_samples = rep_matrix(0.0, M, Time);
   int observed_M = sum(end_time) - sum(start_time) + M;
   for (agency in 1:M) {
@@ -87,7 +87,7 @@ generated quantities {
     }
   }
   x_samples -= sum(x_samples) / observed_M;
-  beta_standardized *= sqrt(sum(square(x_samples)) / (observed_M - 1)); // add ( beta[which_pos] >= 0.0 ? 1.0 : -1.0 )
+  //beta_standardized *= ( beta[which_pos] >= 0.0 ? 1.0 : -1.0 ) * sqrt(sum(square(x_samples)) / (observed_M - 1)); // add ( beta[which_pos] >= 0.0 ? 1.0 : -1.0 )
   x_samples /= sqrt(sum(square(x_samples)) / (observed_M - 1)); //x_samples /= ( beta[which_pos] >= 0.0 ? 1.0 : -1.0 ) * sqrt ........
 
   

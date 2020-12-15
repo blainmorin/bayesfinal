@@ -32,13 +32,12 @@ df = fed %>%
 
 years = 1975:2013
 
-regressors = c("logn", "med_sal_", "LOSavg", "logMA_pct", "logAIN_pct")
+regressors = c("n", "med_sal_", "LOSavg", "ma_pct", "AIN_pct", "LST_pct", "gini")
 
 dff = df %>%
   filter(yr %in% years) %>%
   select(regressors, yr, AGYSUB, agy_typ) %>%
   mutate_at(regressors, scale) %>%
-  mutate(AGYSUB = as.factor(AGYSUB)) %>%
   mutate(yr = as.factor(yr)) %>%
   drop_na()
 
@@ -62,6 +61,7 @@ dff = dff %>%
   filter(missingyear == 0) ### Removes 16 agencies 
 
 dff = dff %>%
+  mutate(AGYSUB = as.factor(AGYSUB)) %>%
   complete(nesting(AGYSUB), year) %>%
   mutate(agency = as.integer(AGYSUB))
 
@@ -109,9 +109,9 @@ cap.data$end_time = dff %>%
 cap.data$end_time = cap.data$end_time$maxyear
 
 options(mc.cores = detectCores())
-kalman.test = stan(file = "kalman.stan", data = cap.data, iter = 2000)
+kalman.test = stan(file = "kalman.stan", data = cap.data, iter = 4000)
 
-save(kalman.test, file = "bigkalman5")
+load("bigkalman5")
 
 check=as.data.frame(summary(kalman.test)$summary)
 check$rowname = rownames(check)
@@ -131,10 +131,11 @@ dfff = dfff %>%
 
 dfff %>%
   drop_na(agy_typ) %>%
+  mutate(Ave_Capacity = -1*Ave_Capacity) %>%
   ggplot(aes(x = time, y = Ave_Capacity)) +
   geom_line(aes(color = agy_typ, group = AGYSUB), size = 1.4, alpha = .6) +
   facet_wrap(~agy_typ) +
-  geom_smooth(method = "lm", color = "black", se = FALSE) +
+  geom_smooth(color = "black", se = FALSE) +
   ylab("Capacity") +
   xlab("Time") +
   theme_minimal()

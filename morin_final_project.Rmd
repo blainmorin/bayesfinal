@@ -37,10 +37,71 @@ The capacity of a bureaucratic agency, or its resources and professionalization,
 
 ## Data
 
-* Where do the data come from?
-* Size, variables, whoch variables are we using for capacity
+The ensuing analysis uses personnel data from all federal agencies from 1973 to 2019. The data set contains uniquely identified information (such as education level and salary) for individual federal employees. These data not only allow us to calculate aggregate measures (such as the median salary of an agency), but it also allows us to see when an agency exudes and absorbs employees to and from other agencies. The data come from the U.S. Office of Personnel Management and were made publicly available by BuzzFeed News [@buzz].     
+
+We use the individual data create aggregate measures for each agency for each year. The main agency level variables related to capacity are:
+
+* *Number of Employees*
+* *Median Salary*
+* *Percentage of Employees with a Master's Degree or Higher*
+* *Average Length of Service*
+* *Percentage of Employees Requisitioned from Other Agencies*
+* *Percentage of Employees who Left the Agency*
+* *Gini Coefficient*
 
 ## Exploratory Analysis
+
+
+
+```{r}
+
+fed = read_csv("fed_agency_capacity_autonomy.csv")
+
+set.seed(9876)
+
+df = fed %>%
+  filter(yr != 1973) %>%
+  filter(yr >= 1974) %>%
+  filter(yr < 2014) %>% 
+  filter(med_sal_ > 0) %>% 
+  filter(n > 5) %>%
+  drop_na(med_sal_) %>%
+  filter(AGYSUB != "TOTL")%>%
+  filter(!grepl("NET", agy_full)) %>%
+  mutate(logMA_pct = log(ma_pct + 1)) %>%
+  mutate(logLST_pct = log(LST_pct + 1)) %>%
+  mutate(logAIN_pct = log(AIN_pct + 1)) %>%
+  mutate(logPHDpct = log(doc_pct + 1)) %>%
+  mutate(logn = log(n)) %>%
+  mutate(Environmental = ifelse(agy_typ == "Natural Resources and Environment", 1, 0)) %>%
+  mutate(Environmental = ifelse(AGYSUB == "EP00", 2, Environmental)) %>%
+  mutate(Environmental = as.factor(Environmental))
+
+sumdf = df %>% 
+  group_by(agy_typ) %>%
+  summarise("N Agencies" = n(),
+            Mean1 = mean(n), SD1 = sd(n),
+            Mean2 = mean(med_sal_), SD2 = sd(med_sal_),
+            Mean3 = mean(LOSavg), SD3 = sd(LOSavg),
+            Mean4 = mean(ma_pct), SD4 = sd(ma_pct),
+            Mean5 = mean(AIN_pct), SD5 = sd(AIN_pct),
+            Mean6 = mean(LST_pct), SD6 = sd(LST_pct),
+            Mean7 = mean(gini, na.rm = T), SD7 = sd(gini, na.rm = T))
+
+sumdf[,2:(ncol(sumdf)-2)] = round(sumdf[,2:(ncol(sumdf)-2)])
+
+sumdf[,c("Mean7", "SD7")] = round(sumdf[,c("Mean7", "SD7")], 2)
+
+colnames(sumdf) = c("Agency Type", "N Agencies", rep(c("Mean", "sd"), 7))
+
+kbl(sumdf, booktabs = T, linesep = "", caption = "Summary Statistics of Capacity Indicators By Agency Type") %>%
+  kable_styling(latex_options = c("striped", "scale_down")) %>%
+  add_header_above(c(" " = 2, "Employees" = 2, "Median Salary" = 2,
+                     "Length of\nService" = 2, "% Master's" = 2,
+                     "% Employees\nRequisitioned" = 2, "% Employees\nLost" = 2,
+                     "Gini" = 2))
+
+```
 
 ```{r}
 
@@ -101,7 +162,7 @@ dfff %>%
 
 ```
 
-```{r, fig.height=10}
+```{r, fig.height=10, fig.width=8}
 
 fed = read_csv("fed_agency_capacity_autonomy.csv")
 
@@ -192,7 +253,7 @@ g = ggplot() +
   geom_line(aes(x = yr, y = gini, group = AGYSUB), data = df3, size = 1.5, color = "orangered1") +
   theme_bw()+ 
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),panel.background = element_rect(fill = "white")) +
-  ggtitle("Agency Gini Coefficient") +
+  ggtitle("Gini Coefficient") +
   xlab("") + ylab("") + theme(plot.title = element_text(size=10))
 
 grid.arrange(a, b, c, d, e, f, g, ncol = 2, top = "Figure 2: Observed Trend of Capacity Variables\nGreen = Environmental Agency, Red = EPA ")
@@ -241,7 +302,7 @@ $$  \mathbf{y}_{i,t} = \mathbf{F}_{i, t} \mathbf{Z_{i,t}} + \mathbf{W}_{i,t}\bol
 
 $$  \mathbf{Z}_{i,t} = \mathbf{G}_{i,t}\mathbf{Z_{i, t-1}} + \mathbf{A}_t \mathbf{x}_{i,t} + \mathbf{u}_{i,t} $$
 
-* Random Walk model sets $ \mathbf{G}_{i,t} = \mathbf{I}, \forall i,t$
+* Random Walk model sets $\mathbf{G}_{i,t} = \mathbf{I}, \forall i,t$
 * Say used Kalman filter, marginal likelihood with respect to the latent variable. 
 
 ## Results
