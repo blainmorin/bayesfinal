@@ -1,0 +1,249 @@
+---
+title: "Dynamic Measurement of the Capacity of Federal Agencies"
+subtitle: "PS 919: Professor Tahk"
+author: "Blain Morin"
+date: "12/12/2020"
+output: pdf_document
+bibliography: bib.bib
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+
+```
+
+```{r}
+
+
+library(knitr)
+library(tidyverse)
+library(rstan)
+library(parallel)
+library(pscl)
+library(kableExtra)
+library(shinystan)
+library(ggcorrplot)
+library(gridExtra)
+library(ggridges)
+library(RColorBrewer)
+
+```
+
+
+## Introduction
+
+The capacity of a bureaucratic agency, or its resources and professionalization, play a key role in an agency’s “ability to induce residents, firms, and organizations to act in ways they would not in the absence of its regulatory and administrative presence” [@berch; @kurtz]. Measuring this “institutional power” of federal agencies is of interest to political scientists and policy researchers because it is an important input to governance outcomes [@berch]. This paper uses a dynamic latent variable approach to measure the capacity of federal agencies in the United States.
+
+## Data
+
+* Where do the data come from?
+* Size, variables, whoch variables are we using for capacity
+
+## Exploratory Analysis
+
+```{r}
+
+fed = read_csv("fed_agency_capacity_autonomy.csv")
+
+set.seed(9876)
+df = fed %>%
+  filter(yr != 1973) %>%
+  filter(yr >= 1974) %>%
+  filter(yr < 2014) %>% 
+  filter(med_sal_ > 0) %>% 
+  filter(n > 5) %>%
+  drop_na(med_sal_) %>%
+  filter(AGYSUB != "TOTL")%>%
+  filter(!grepl("NET", agy_full)) %>%
+  mutate(logMA_pct = log(ma_pct + 1)) %>%
+  mutate(logLST_pct = log(LST_pct + 1)) %>%
+  mutate(logAIN_pct = log(AIN_pct + 1)) %>%
+  mutate(logPHDpct = log(doc_pct + 1)) %>%
+  mutate(logn = log(n)) %>%
+  mutate(Environmental = ifelse(agy_typ == "Natural Resources and Environment", 1, 0)) %>%
+  mutate(Environmental = ifelse(AGYSUB == "EP00", 2, Environmental)) %>%
+  mutate(Environmental = as.factor(Environmental))
+
+regressors = c("logn", "logMA_pct", "med_sal_", "logLST_pct", "logAIN_pct", "LOSavg", "gini",
+               "n", "ma_pct", "LST_pct", "AIN_pct")
+
+dff = df %>%
+  select(regressors) %>%
+  mutate_at(regressors, scale) %>%
+  drop_na()
+
+dfff = dff %>%
+  gather("Variable", "Value", 1:ncol(dff)) %>%
+  mutate("logTransform" = as.factor(ifelse(Variable %in% c("logn", "logMA_pct",
+                                                  "logLST_pct", "logAIN_pct"), "Yes", "No"))) %>%
+  mutate(Variable = ifelse(Variable == "logn", "n", Variable)) %>%
+  mutate(Variable = ifelse(Variable == "logAIN_pct", "AIN_pct", Variable)) %>%
+  mutate(Variable = ifelse(Variable == "logLST_pct", "LST_pct", Variable)) %>%
+  mutate(Variable = ifelse(Variable == "logMA_pct", "ma_pct", Variable)) %>%
+  mutate(Variable = ifelse(Variable == "n", "Number of Employees", Variable)) %>%
+  mutate(Variable = ifelse(Variable == "AIN_pct", "Percent Employees Gained", Variable)) %>%
+  mutate(Variable = ifelse(Variable == "LST_pct", "Percent Employees Lost", Variable)) %>%
+  mutate(Variable = ifelse(Variable == "ma_pct", "Percent have Master's Degree", Variable))
+  
+
+dfff %>%
+  ggplot(aes(x = Value, y = Variable)) +
+  stat_density_ridges(aes(fill = logTransform), from = -2, to = 2,
+                      alpha = .8, color = "white", panel_scaling = FALSE,
+                      rel_min_height = .045) +
+  ylab("") +
+  xlab("Scaled Value") +
+  theme_classic() +
+  scale_fill_brewer(type = "qual", palette = 4) +
+  ggtitle("Figure 1: Density Plots for Observed Variables")
+
+
+```
+
+```{r, fig.height=10}
+
+fed = read_csv("fed_agency_capacity_autonomy.csv")
+
+set.seed(9876)
+df = fed %>%
+  filter(yr != 1973) %>%
+  filter(yr >= 1974) %>%
+  filter(yr < 2014) %>% 
+  filter(med_sal_ > 0) %>% 
+  filter(n > 5) %>%
+  drop_na(med_sal_) %>%
+  filter(AGYSUB != "TOTL")%>%
+  filter(!grepl("NET", agy_full)) %>%
+  mutate(logMA_pct = log(ma_pct + 1)) %>%
+  mutate(logLST_pct = log(LST_pct + 1)) %>%
+  mutate(logAIN_pct = log(AIN_pct + 1)) %>%
+  mutate(logPHDpct = log(doc_pct + 1)) %>%
+  mutate(logn = log(n)) %>%
+  mutate(Environmental = ifelse(agy_typ == "Natural Resources and Environment", 1, 0)) %>%
+  mutate(Environmental = ifelse(AGYSUB == "EP00", 2, Environmental)) %>%
+  mutate(Environmental = as.factor(Environmental))
+
+df2 = df %>%
+  filter(agy_typ == 'Natural Resources and Environment') %>%
+  filter(AGYSUB!="EP00")
+
+df3 = df %>%
+  filter(AGYSUB == "EP00")
+
+
+a = ggplot() +
+  geom_line(aes(x = yr, y = logn, group = AGYSUB), data = df, alpha = .4, size = 1, color = "slategray3") +
+  geom_line(aes(x = yr, y = logn, group = AGYSUB), data = df2, alpha = .8, size = 1.2, color = "mediumseagreen") +
+  geom_line(aes(x = yr, y = logn, group = AGYSUB), data = df3, size = 1.5, color = "orangered1") +
+  theme_bw()+ 
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),panel.background = element_rect(fill = "white")) +
+  ggtitle("log(Number of Employees)") +
+  xlab("") + ylab("") + theme(plot.title = element_text(size=10))
+
+b = ggplot() +
+  geom_line(aes(x = yr, y = med_sal_, group = AGYSUB), data = df, alpha = .4, size = 1, color = "slategray3") +
+  geom_line(aes(x = yr, y = med_sal_, group = AGYSUB), data = df2, alpha = .8, size = 1.2, color = "mediumseagreen") +
+  geom_line(aes(x = yr, y = med_sal_, group = AGYSUB), data = df3, size = 1.5, color = "orangered1") +
+  theme_bw()+ 
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),panel.background = element_rect(fill = "white")) +
+  ggtitle("Median Salary") +
+  xlab("") + ylab("") + theme(plot.title = element_text(size=10))
+
+c = ggplot() +
+  geom_line(aes(x = yr, y = LOSavg, group = AGYSUB), data = df, alpha = .4, size = 1, color = "slategray3") +
+  geom_line(aes(x = yr, y = LOSavg, group = AGYSUB), data = df2, alpha = .8, size = 1.2, color = "mediumseagreen") +
+  geom_line(aes(x = yr, y = LOSavg, group = AGYSUB), data = df3, size = 1.5, color = "orangered1") +
+  theme_bw()+ 
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),panel.background = element_rect(fill = "white")) +
+  ggtitle("Average Length of Service") +
+  xlab("") + ylab("") + theme(plot.title = element_text(size=10))
+
+d = ggplot() +
+  geom_line(aes(x = yr, y = logMA_pct, group = AGYSUB), data = df, alpha = .4, size = 1, color = "slategray3") +
+  geom_line(aes(x = yr, y = logMA_pct, group = AGYSUB), data = df2, alpha = .8, size = 1.2, color = "mediumseagreen") +
+  geom_line(aes(x = yr, y = logMA_pct, group = AGYSUB), data = df3, size = 1.5, color = "orangered1") +
+  theme_bw()+ 
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),panel.background = element_rect(fill = "white")) +
+  ggtitle("log(% Have Master's Degree)") +
+  xlab("") + ylab("") + theme(plot.title = element_text(size=10))
+
+e = ggplot() +
+  geom_line(aes(x = yr, y = logAIN_pct, group = AGYSUB), data = df, alpha = .4, size = 1, color = "slategray3") +
+  geom_line(aes(x = yr, y = logAIN_pct, group = AGYSUB), data = df2, alpha = .8, size = 1.2, color = "mediumseagreen") +
+  geom_line(aes(x = yr, y = logAIN_pct, group = AGYSUB), data = df3, size = 1.5, color = "orangered1") +
+  theme_bw()+ 
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),panel.background = element_rect(fill = "white")) +
+  ggtitle("log(% Employees Gained From Other Agencies)") +
+  xlab("") + ylab("") + theme(plot.title = element_text(size=10))
+
+f = ggplot() +
+  geom_line(aes(x = yr, y = logLST_pct, group = AGYSUB), data = df, alpha = .4, size = 1, color = "slategray3") +
+  geom_line(aes(x = yr, y = logLST_pct, group = AGYSUB), data = df2, alpha = .8, size = 1.2, color = "mediumseagreen") +
+  geom_line(aes(x = yr, y = logLST_pct, group = AGYSUB), data = df3, size = 1.5, color = "orangered1") +
+  theme_bw()+ 
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),panel.background = element_rect(fill = "white")) +
+  ggtitle("log(% Employees Lost to Other Agencies)") +
+  xlab("") + ylab("") + theme(plot.title = element_text(size=10))
+
+g = ggplot() +
+  geom_line(aes(x = yr, y = gini, group = AGYSUB), data = df, alpha = .4, size = 1, color = "slategray3") +
+  geom_line(aes(x = yr, y = gini, group = AGYSUB), data = df2, alpha = .8, size = 1.2, color = "mediumseagreen") +
+  geom_line(aes(x = yr, y = gini, group = AGYSUB), data = df3, size = 1.5, color = "orangered1") +
+  theme_bw()+ 
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),panel.background = element_rect(fill = "white")) +
+  ggtitle("Agency Gini Coefficient") +
+  xlab("") + ylab("") + theme(plot.title = element_text(size=10))
+
+grid.arrange(a, b, c, d, e, f, g, ncol = 2, top = "Figure 2: Observed Trend of Capacity Variables\nGreen = Environmental Agency, Red = EPA ")
+
+
+```
+
+```{r}
+
+regressors = c("logn", "logMA_pct", "med_sal_", "logLST_pct", "logAIN_pct", "LOSavg", "gini")
+
+cordf = df %>%
+  select(regressors) %>%
+  drop_na() %>%
+  rename(Gini = gini, "Log(Master's %)" = logMA_pct, "Length of Service" = LOSavg,
+         "Log(Emp. Gained %)" = logAIN_pct, "Log(Emp. Lost%)" = logLST_pct, "Median Salary" = med_sal_,
+         "Log(n Employees)" = logn)
+
+corr = round(cor(cordf), 2)
+
+ggcorrplot(corr, hc.order = TRUE, type = "lower",
+           outline.col = "white", lab = TRUE, colors = brewer.pal(n = 3, "RdBu")) + ggtitle("Figure 3: Correlation of Observed Capacity Indicators") +
+  theme(axis.text.x = element_text(size = 10), axis.text.y = element_text(size = 10))
+
+```
+
+## Empirical Strategy
+
+* Motivation for latent variable (we don't observe capacity, only theoretical indicators)
+* Cross Sectional Latent form (should I even include this?):
+
+$$  y_{i,t,j} \sim \mathcal{N}(\mu_{i,t,j}, \sigma_{t, j} ^2) $$
+$$  \mu_{i, t, j} = \alpha_{t,j} + \beta_{t,j} * Z_{i,t} $$
+
+Identification restriction:
+
+$$  Z_{i,t} \sim \mathcal{N}(0, 1) $$
+
+* This specification does not account for covariance between time points
+
+* Jackman: Dynamic measurement model in Bayesian framework allows inference over a longer longitudinal dimension.
+
+$$  \mathbf{y}_{i,t} = \mathbf{F}_{i, t} \mathbf{Z_{i,t}} + \mathbf{W}_{i,t}\boldsymbol\delta_{i,t} + \boldsymbol{\epsilon}_{i,t} $$
+
+* Latent variable evolves:
+
+$$  \mathbf{Z}_{i,t} = \mathbf{G}_{i,t}\mathbf{Z_{i, t-1}} + \mathbf{A}_t \mathbf{x}_{i,t} + \mathbf{u}_{i,t} $$
+
+* Random Walk model sets $ \mathbf{G}_{i,t} = \mathbf{I}, \forall i,t$
+* Say used Kalman filter, marginal likelihood with respect to the latent variable. 
+
+## Results
+
+# References
