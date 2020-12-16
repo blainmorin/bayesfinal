@@ -51,7 +51,7 @@ df = fed %>%
 
 years = 1974:2013
 
-regressors = c("n", "med_sal_", "LOSavg", "ma_pct", "AIN_pct", "LST_pct", "gini")
+regressors = c("logn", "med_sal_", "LOSavg", "logMA_pct", "logAIN_pct", "logLST_pct", "gini")
 
 # Select regressors and scale them
 # Drop missing years temporarily
@@ -153,7 +153,7 @@ cap.data$end_time = cap.data$end_time$maxyear
 # Run the model
 
 options(mc.cores = detectCores())
-kalman.test = stan(file = "kalman.stan", data = cap.data, iter = 10000, seed = 9495)
+kalman.test = stan(file = "kalman.stan", data = cap.data, iter = 5000, seed = 9495)
 
 save(kalman.test, file = "kalmanfinal")
 
@@ -162,7 +162,7 @@ save(kalman.test, file = "kalmanfinal")
 ###################################################################
 
 
-load("bigkalman5")
+load("kalmanfinal")
 
 check=as.data.frame(summary(kalman.test)$summary)
 check$rowname = rownames(check)

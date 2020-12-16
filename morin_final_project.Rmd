@@ -350,15 +350,319 @@ This identification restriction is arbitrary, as it simply sets the scale of the
 However, the cross sectional analysis described above does not account for the covariance between capacity measurements across time. We account for this longitudinal dimension using a bayesian framework, which is well suited to data that spans a long time dimension [@jackman]. Following Jackman [-@jackman]: 
 
 $$  \mathbf{y}_{i,t} = \mathbf{F}_{i, t} \mathbf{Z_{i,t}} +  \boldsymbol{\epsilon}_{i,t} $$
-where $\mathbf{y}_{i,t}$ is a vector of indicators. $\mathbf{F}_{i,t}$ is a state transition matrix, which in our scenario is assumed to be equal to the identity matrix. Moreover, the latent process evolves such that the latent state at time $t$ is a function of the state at time $t-1$:
+where $\mathbf{y}_{i,t}$ is a vector of indicators. $\mathbf{F}_{i,t}$ is a state transition matrix, which in our scenario is assumed to be equal to the identity matrix. Moreover, the latent process evolves such that the latent state at time $t$ is a function of the state at time $t-1$, for $t=2,...,T$:
 $$  \mathbf{Z}_{i,t} = \mathbf{G}_{i,t}\mathbf{Z_{i, t-1}} + \mathbf{u}_{i,t} $$
-For our capacity process, we start by assuming that capacity of an agency follows a random walk, or in other words that $\mathbf{G}_{i,t} = \mathbf{I}, \forall i,t$ [@jackman]. We estimate this model in rstan using a marginal likelihood Kalman filter.
-
+For our capacity process, we start by assuming that capacity of an agency follows a random walk, or in other words that $\mathbf{G}_{i,t} = \mathbf{I}, \forall i,t$ [@jackman]. We estimate this model in rstan using a marginal likelihood Kalman filter, using the following priors: $\alpha_{t,j} \sim \mathcal{N}(0, 10)$, $\beta_{i,j} \sim \mathcal{N}(0,10)$
+$\boldsymbol{\sigma_{t}} \sim cauchy(0, 2.5)$ [@gelman]. We place a prior on the starting mean of the latent variable distribution, such that it is $\mathcal{N}(0,1)$, with the starting standard deviation $cauchy(0,2.5)$. The prior assigned to the change in the standard deviation is also $cauchy(0,2.5)$. 
 
 ## Results
 
+For comparative purposes, we present the estimated capacity trends when capacity is estimated cross sectionally in Figure 4. This cross sectional model uses the same indicators of capacity and was estimated using the lavaan package in r. We see that within agency type, there is high variance in the capacity between individual agencies. There is not an obvious difference between the trends of different agency types. Surprisingly, education agencies seem to have the lowest estimated average capacity despite employing a high number of people. 
+
+Figure 5 displays the capacity estimates for the dynamic longitudinal model. The random walk specification seems to have smoothed the capacity trends relative to the cross sectional model. For example, if we look at the EPA trend (the red line), we see that the capacity estimates bounce around in the cross sectional model, whereas there is a smooth increase in the longitudinal case. 
+
+```{r, fig.height=8.5, fig.width=9}
+
+library(lavaan)
+library(tidyverse)
+library(readr)
+
+
+set.seed(1234)
+fed = read_csv("fed_agency_capacity_autonomy.csv")
+
+themodel = '
+
+capacity =~ logn + logMA_pct + LOSavg + logAIN_pct + logLST_pct + med_sal_ + gini
+
+'
+
+
+years = 1974:2013
+
+regressors = c("logn", "med_sal_", "LOSavg", "logMA_pct", "logAIN_pct", "logLST_pct", "gini")
+
+df = fed %>%
+  filter(yr != 1973) %>%
+  filter(yr >= 1974) %>%
+  filter(med_sal_ > 0) %>% 
+  filter(n > 5) %>%
+  drop_na(med_sal_) %>%
+  filter(AGYSUB != "TOTL")%>%
+  filter(!grepl("NET", agy_full)) %>%
+  mutate(logMA_pct = log(ma_pct + 1)) %>%
+  mutate(logLST_pct = log(LST_pct + 1)) %>%
+  mutate(logAIN_pct = log(AIN_pct + 1)) %>%
+  mutate(logPHDpct = log(doc_pct + 1)) %>%
+  mutate(logn = log(n)) 
+
+dff = df %>%
+  filter(yr %in% years) %>%
+  select(regressors, yr, AGYSUB, agy_typ) %>%
+  mutate_at(regressors, scale) %>%
+  drop_na()
+
+
+
+preds = data.frame(capacity = NA)
+
+for (i in 1974:2013) {
+  
+  fordata = dff %>%
+    filter(yr == i)
+  
+  fordata = fordata %>%
+    select(regressors) %>%
+    mutate_at(regressors, scale) 
+  
+  fit = cfa(themodel, data = fordata)
+  
+  output = predict(fit)
+  
+  preds = rbind(preds, output)
+  
+  
+}
+
+preds = preds[-1, ]
+
+df2 = cbind(dff, preds) 
+
+df2$preds = scale(df2$preds)
+
+EP = subset(df2, AGYSUB == "EP00")
+
+p = df2 %>%
+  ggplot(aes(x = yr, y = preds)) +
+  geom_line(aes(group = AGYSUB), alpha = .6) +
+  geom_line(data = EP, color = "red", size = 1) +
+  geom_point(alpha = .6, size = .8) +
+  geom_point(data = EP, color = "red") +
+  facet_wrap(~agy_typ) +
+  theme_bw() +
+  ylab("Capacity") +
+  xlab("Year") +
+  ggtitle("Figure 4: Federal Agency Capacity: 1974 - 2013 (Cross Sectional)") +
+  theme(strip.background =element_rect(fill="black")) +
+  theme(strip.text = element_text(colour = 'white')) +
+  labs(caption = "Red is EPA")
+
+p
+
+
+```
+
+```{r, fig.height=8.5, fig.width=9, cache=TRUE}
+
+
+###########################################
+######################
+##################
+# This code sets up data for stan and executes the stan model
+# For years 1974 - 2013
+###########################################
+##############################################################################
+#######################################################################
+###################################################################
+### Required Libraries
+library(knitr)
+library(tidyverse)
+library(rstan)
+library(parallel)
+library(pscl)
+library(kableExtra)
+library(shinystan)
+library(ggcorrplot)
+##############################################################################
+#######################################################################
+###################################################################
+### Read in data
+fed = read_csv("fed_agency_capacity_autonomy.csv")
+##############################################################################
+#######################################################################
+###################################################################
+# Model for reference
+# capacity =~ logn + logMA_pct + LOSavg + logAIN_pct + logLST_pct + med_sal_ + gini
+
+##############################################################################
+#######################################################################
+###################################################################
+# Data cleaning
+# Get rid of agencies with med salary = 0 and employees less than 5
+# Make log transforms
+set.seed(9876)
+df = fed %>%
+  filter(yr != 1973) %>%
+  filter(yr >= 1974) %>%
+  filter(med_sal_ > 0) %>% 
+  filter(n > 5) %>%
+  drop_na(med_sal_) %>%
+  filter(AGYSUB != "TOTL")%>%
+  filter(!grepl("NET", agy_full)) %>%
+  mutate(logMA_pct = log(ma_pct + 1)) %>%
+  mutate(logLST_pct = log(LST_pct + 1)) %>%
+  mutate(logAIN_pct = log(AIN_pct + 1)) %>%
+  mutate(logPHDpct = log(doc_pct + 1)) %>%
+  mutate(logn = log(n)) 
+
+years = 1974:2013
+
+regressors = c("logn", "med_sal_", "LOSavg", "logMA_pct", "logAIN_pct", "logLST_pct", "gini")
+
+# Select regressors and scale them
+# Drop missing years temporarily
+dff = df %>%
+  filter(yr %in% years) %>%
+  select(regressors, yr, AGYSUB, agy_typ) %>%
+  mutate_at(regressors, scale) %>%
+  mutate(yr = as.factor(yr)) %>%
+  drop_na()
+
+# This gets agency data start and end years
+dff = dff %>%
+  mutate(year = as.integer(as.factor(yr))) %>%
+  group_by(AGYSUB) %>%
+  mutate(minyear = min(year)) %>%
+  mutate(maxyear = max(year)) %>%
+  ungroup()
+
+
+# This section removes agencies where a random year in the middle is missing
+dff = dff %>%
+  arrange(AGYSUB)
+
+dff = dff %>%
+  group_by(AGYSUB) %>%
+  mutate(nobs = n()) %>%
+  ungroup()
+
+dff = dff %>%
+  mutate(missingyear = ifelse(nobs != maxyear - minyear + 1, 1, 0)) %>% 
+  filter(missingyear == 0) ### Removes 16 agencies 
+
+dff = dff %>%
+  mutate(AGYSUB = as.factor(AGYSUB)) %>%
+  complete(nesting(AGYSUB), year) %>%
+  mutate(agency = as.integer(AGYSUB))
+
+##############################################################################
+#######################################################################
+###################################################################
+##############################################################################
+#######################################################################
+###################################################################
+# The following section makes the stan data
+# z puts the puts dff into an array form
+# Basically, for the 180 agencies, there is a time by indicator matrix
+
+
+z = array(0, dim=c(length(unique(dff$AGYSUB)), length(years), length(regressors))) 
+# array[agency, time, indicator]
+
+for (i in 1:length(unique(dff$AGYSUB))) {
+  for (t in 1:length(years)) {
+    for (j in 1:length(regressors)) {
+      
+      value = as.double(dff %>% filter(agency == i, year == t) %>% select(regressors[j]))
+      z[i, t, j] = value
+      
+    }
+    
+  }
+  
+}
+
+# Turn missing years to 0 because stan doesnt accept na (these won't actually get used)
+z[is.na(z)] = 0
+
+cap.data = list(M = length(unique(dff$AGYSUB)), Time = length(years), z = z)
+
+cap.data$N = nrow(cap.data$y)
+
+cap.data$J = length(regressors)
+
+cap.data$which_pos = 1
+
+# Create vectors with agency starting and ending times
+cap.data$start_time = dff %>%
+  group_by(AGYSUB) %>%
+  drop_na() %>%
+  slice(1) %>%
+  ungroup() %>%
+  select(minyear)
+
+cap.data$start_time = cap.data$start_time$minyear
+
+cap.data$end_time = dff %>%
+  group_by(AGYSUB) %>%
+  drop_na() %>%
+  slice(1) %>%
+  ungroup() %>%
+  select(maxyear)
+
+cap.data$end_time = cap.data$end_time$maxyear
+
+load("kalmanfinal")
+
+check=as.data.frame(summary(kalman.test)$summary)
+check$rowname = rownames(check)
+check2 = check %>%
+  filter(str_detect(rowname, "x_sam"))
+check2 = check2[, c(1,4, 6, 8, 9, 10)]
+check2$agency = rep(1:cap.data$M, each = cap.data$Time)
+check2$time = rep(1:cap.data$Time, cap.data$M)
+
+dff = dff %>%
+  mutate(agency = as.integer(AGYSUB)) %>%
+  mutate(time = as.integer(yr))
+
+dfff = left_join(dff, check2) 
+dfff = dfff %>%
+  rename(Ave_Capacity = mean, lower = "2.5%", upper = "97.5%")
+
+EP = subset(dfff, AGYSUB == "EP00")
+
+dfff %>%
+  drop_na(agy_typ) %>%
+  mutate(Ave_Capacity = Ave_Capacity) %>%
+  ggplot(aes(x = time, y = Ave_Capacity)) +
+  geom_line(aes(group = AGYSUB), alpha = .6) +
+  geom_line(data = EP, color = "red", size = 1) +
+  geom_point(alpha = .6, size = .8) +
+  geom_point(data = EP, color = "red") +
+  facet_wrap(~agy_typ) +
+  theme_bw() +
+  ylab("Capacity") +
+  xlab("Year") +
+  ggtitle("Figure 5: Federal Agency Capacity: 1974 - 2013 (Longitudinal)") +
+  theme(strip.background =element_rect(fill="black")) +
+  theme(strip.text = element_text(colour = 'white')) +
+  labs(caption = "Red is EPA")
+
+
+```
+
 ```{r}
 
+sumdf2 = round(check [8:14, 1:10],2)
+sumdf2 = sumdf2[,-(5:7)]
+
+Indi = data.frame(Indicator = c("log(n Employees)", "Median Salary", "Average Length of Service",
+               "log(Master's %)", "log(Employees Gained %)", "log(Employees Lost %)",
+               "Gini Coefficient"))
+
+sumdf2 = cbind(Indi, sumdf2)
+
+sumdf2 %>%
+  kbl(booktabs = TRUE, linesep = "", caption = "Factor Loading Results (Longitudinal Model)") %>%
+kable_styling(latex_options = "striped")
+
+
+```
+
+```{r}
+
+traceplot(kalman.test, pars = rownames(check)[8:14])
 
 ```
 

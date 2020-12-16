@@ -17,7 +17,7 @@ parameters {
 }
 model {
   for (agency in 1:M) {
-    real x;//\mean belief about latent process
+    real x;//mean belief about latent process
     real P; //variance belief about latent process
     x = x_start_mean;
     P = x_start_sd ^ 2;
