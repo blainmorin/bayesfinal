@@ -2,9 +2,13 @@
 title: "Dynamic Measurement of the Capacity of Federal Agencies"
 subtitle: "PS 919: Professor Tahk"
 author: "Blain Morin"
-date: "12/12/2020"
+date: "12/16/2020"
 output: pdf_document
+spacing: double
 bibliography: bib.bib
+header-includes:
+  - \usepackage{float}
+  - \usepackage{setspace}\doublespacing
 ---
 
 ```{r setup, include=FALSE}
@@ -39,7 +43,7 @@ The capacity of a bureaucratic agency, or its resources and professionalization,
 
 The ensuing analysis uses personnel data from all federal agencies from 1973 to 2013. The data set contains uniquely identified information (such as education level and salary) for individual federal employees. These data not only allow us to calculate aggregate measures (such as the median salary of an agency), but it also allows us to see when an agency exudes and absorbs employees to and from other agencies. The data come from the U.S. Office of Personnel Management and were made publicly available by BuzzFeed News [@buzz].     
 
-We use the individual data create aggregate measures for each agency for each year. The main agency level variables related to capacity are:
+We use the individual level data to create aggregate measures for each agency for each year. The main agency level variables related to capacity are:
 
 * *Number of Employees*
 * *Median Salary*
@@ -47,11 +51,11 @@ We use the individual data create aggregate measures for each agency for each ye
 * *Average Length of Service*
 * *Percentage of Employees Requisitioned from Other Agencies*
 * *Percentage of Employees who Left the Agency*
-* *Gini Coefficient*
+* *The Gini Coefficient of an Individual Agency*
 
 ## Exploratory Analysis
 
-Summary statistics for the capacity indicators by the type of agency are shown in Table 1. Agency types are assigned based on their primary spending patterns. For example, the Environmental Protection Agency (EPA) allocates a majority of its budget to "Natural Resources and Environment" and is categorized accordingly. As we see in the table, the type with the highest number of different agencies is Education. Across time, health agencies employed to highest number of people on average. National defense agencies had the highest median salary across years. General science and basic research employed the highest percentage of people with a Master's Degree or higher level of education. Crime, Law Enforcement, and Incarceration the highest (as a percentage of agency employment) average requisitioning rate from other agencies. General Government agencies lost the highest percentage of agency employment on average over the years. Average lengths of service and gini coefficient were similar across agency types.  
+Summary statistics for the capacity indicators by the type of agency are shown in Table 1. Agency types are assigned based on their primary spending patterns. For example, the Environmental Protection Agency (EPA) allocates a majority of its budget to "Natural Resources and Environment" and is categorized accordingly. As we see in the table, the type with the highest number of different agencies is Education. Across time, Health agencies employed the highest number of people on average. National Defense agencies had the highest median salary across years. General Science and Basic Research employed the highest percentage of people with a Master's degree or higher level of education. Crime, Law Enforcement, and Incarceration has the highest (as a percentage of agency employment) average requisitioning rate from other agencies. General Government agencies lost the highest percentage of agency employment on average over the years. Average lengths of service and gini coefficient were similar across agency types.  
 
 ```{r}
 
@@ -137,7 +141,7 @@ sumdf[,c("Mean7", "SD7")] = round(sumdf[,c("Mean7", "SD7")], 2)
 colnames(sumdf) = c("Agency Type", "N Agencies", rep(c("Mean", "sd"), 7))
 
 kbl(sumdf, booktabs = T, linesep = "", caption = "Summary Statistics of Capacity Indicators By Agency Type") %>%
-  kable_styling(latex_options = c("striped", "scale_down")) %>%
+  kable_styling(latex_options = c("striped", "scale_down", "HOLD_position")) %>%
   add_header_above(c(" " = 2, "Employees" = 2, "Median Salary" = 2,
                      "Length of\nService" = 2, "% Master's" = 2,
                      "% Employees\nRequisitioned" = 2, "% Employees\nLost" = 2,
@@ -210,13 +214,15 @@ dfff %>%
 
 Figure 1 displays density plots for each of the capacity indicators. For comparable scaling, these data were standardized. Figure 1 also displays the log transformation of the percentage variables and employee count (in blue). Each of these log transformations help reduce skewness. We carry these log transformations through the subsequent analyses. Overall, the seven indicators are reasonably close to a normal distribution. 
 
-Figure 2 displays the trends of the capacity indicators over time for all agencies. Environmental agencies are highlighted in green and the EPA is highlighted in red. We see that within agency employment for environmental agencies has stayed relatively constant. We see that median salaries have a slightly upward trend (although these are not inflation adjusted). The average length of service within environmental agencies is increasing over time. 
+Figure 2 displays the trends of the capacity indicators over time for all agencies. Environmental agencies are highlighted in green and the EPA is highlighted in red. We see that within agency employment for environmental agencies has stayed relatively constant. Median salaries have a slightly upward trend (although these are not inflation adjusted). The average length of service within environmental agencies is increasing over time. 
 
-We see that environmental agencies lose more employees (either to other agencies or other sectors) at a faster rate than they gain employees from other agencies. For the EPA, we see that the gini coefficient decreases over the past 40 years. Because the average length of service and median salary has been increasing over time with the number of employees relatively constant, this declining gini coefficient may signal a sort of hiring freeze. In other words, the higher observed median salary and lower gini coefficient could be caused by a declining rate of new entry level hires.   
+We also see that environmental agencies lose more employees (either to other agencies or other sectors) at a faster rate than they gain employees from other agencies. For the EPA, we see that the gini coefficient decreases over the past 40 years. Because the average length of service and median salary has been increasing over time, with the number of employees remaining relatively constant, this declining gini coefficient may signal a sort of hiring freeze. In other words, the higher observed median salary and lower gini coefficient could be caused by a declining rate of new entry level hires.   
 
-Lastly, the correlations between the capacity indicators are checked in Figure 3. We see that a number of the indicators are moderately strong correlations. The strongest positive correlation is between median salary and the percentage of employees with a Master's degree or higher, which makes intuitive sense. The strongest negative correlation is between median salary and the gini coefficient. 
+Lastly, the correlations between the capacity indicators are checked in Figure 3. We see that a number of the indicators have moderately strong correlations. The strongest positive correlation is between median salary and the percentage of employees with a Master's degree or higher, which makes intuitive sense. The strongest negative correlation is between median salary and the gini coefficient. 
 
-```{r, fig.height=8.5, fig.width=9}
+
+
+```{r, fig.height=8, fig.width=9}
 
 fed = read_csv("fed_agency_capacity_autonomy.csv")
 
@@ -315,7 +321,7 @@ grid.arrange(a, b, c, d, e, f, g, ncol = 2, top = "Figure 2: Observed Trend of C
 
 ```
 
-```{r}
+```{r, fig.height=4, fig.width=6}
 
 regressors = c("logn", "logMA_pct", "med_sal_", "logLST_pct", "logAIN_pct", "LOSavg", "gini")
 
@@ -330,7 +336,8 @@ corr = round(cor(cordf), 2)
 
 ggcorrplot(corr, hc.order = TRUE, type = "lower",
            outline.col = "white", lab = TRUE, colors = brewer.pal(n = 3, "RdBu")) + ggtitle("Figure 3: Correlation of Observed Capacity Indicators") +
-  theme(axis.text.x = element_text(size = 10), axis.text.y = element_text(size = 10))
+  theme(axis.text.x = element_text(size = 10), axis.text.y = element_text(size = 10))+
+  theme(plot.title = element_text(size=12))
 
 ```
 
@@ -341,18 +348,18 @@ Our goal is to make inferences about the capacity of federal agencies. However, 
 $$  y_{i,t,j} \sim \mathcal{N}(\mu_{i,t,j}, \sigma_{t, j} ^2) $$
 $$  \mu_{i, t, j} = \alpha_{t,j} + \beta_{t,j} * Z_{i,t} $$
 
-where $y_{i,t,j}$ is the observed indicator, $j$, for agency $i$ at time $t$. We assume that these indicators are distributed normally with mean $\mu_{i,t,j}$ and variance $\sigma_{t,j}^2$. $\alpha_{t,j}$ is the intercept for indicator $j$ at time $t$, $\beta_{t,j}$ are the factor loadings for indicator $j$ at time $t$, and $Z_{i,t}$ is the latent capacity of agency $i$ at time $t$.  
+where $y_{i,t,j}$ is the $j^{th}$ observed indicator for agency $i$ at time $t$. We assume that these indicators are distributed normally with mean $\mu_{i,t,j}$ and variance $\sigma_{t,j}^2$. $\alpha_{t,j}$ is the intercept for indicator $j$ at time $t$, $\beta_{t,j}$ are the factor loadings for indicator $j$ at time $t$, and $Z_{i,t}$ is the latent capacity of agency $i$ at time $t$.  
 
 As is, the cross sectional model cannot be identified without the identification restriction:
 $$  Z_{i,t} \sim \mathcal{N}(0, 1) $$
-This identification restriction is arbitrary, as it simply sets the scale of the latent variable [@jackman].
+This identification restriction sets the scale of the latent variable [@jackman].
 
 However, the cross sectional analysis described above does not account for the covariance between capacity measurements across time. We account for this longitudinal dimension using a bayesian framework, which is well suited to data that spans a long time dimension [@jackman]. Following Jackman [-@jackman]: 
 
 $$  \mathbf{y}_{i,t} = \mathbf{F}_{i, t} \mathbf{Z_{i,t}} +  \boldsymbol{\epsilon}_{i,t} $$
-where $\mathbf{y}_{i,t}$ is a vector of indicators. $\mathbf{F}_{i,t}$ is a state transition matrix, which in our scenario is assumed to be equal to the identity matrix. Moreover, the latent process evolves such that the latent state at time $t$ is a function of the state at time $t-1$, for $t=2,...,T$:
+where $\mathbf{y}_{i,t}$ is a vector of indicators. $\mathbf{F}_{i,t}$ is a state transition matrix, which in our scenario is assumed to be equal to the identity matrix. Moreover, the latent process evolves such that the latent state at time $t$ is a function of the latent state at time $t-1$, for $t=2,...,T$:
 $$  \mathbf{Z}_{i,t} = \mathbf{G}_{i,t}\mathbf{Z_{i, t-1}} + \mathbf{u}_{i,t} $$
-For our capacity process, we start by assuming that capacity of an agency follows a random walk, or in other words that $\mathbf{G}_{i,t} = \mathbf{I}, \forall i,t$ [@jackman]. We estimate this model in rstan using a marginal likelihood Kalman filter, using the following priors: $\alpha_{t,j} \sim \mathcal{N}(0, 10)$, $\beta_{i,j} \sim \mathcal{N}(0,10)$
+For our capacity process, we start by assuming that capacity of an agency follows a random walk, or in other words that $\mathbf{G}_{i,t} = \mathbf{I}, \forall i,t$ [@jackman]. We estimate this model in rstan using a marginal likelihood Kalman filter, using the following priors: $\alpha_{t,j} \sim \mathcal{N}(0, 10)$, $\beta_{i,j} \sim \mathcal{N}(0,10)$,
 $\boldsymbol{\sigma_{t}} \sim cauchy(0, 2.5)$ [@gelman]. We place a prior on the starting mean of the latent variable distribution, such that it is $\mathcal{N}(0,1)$, with the starting standard deviation $cauchy(0,2.5)$. The prior assigned to the change in the standard deviation is also $cauchy(0,2.5)$. 
 
 ## Results
@@ -360,6 +367,10 @@ $\boldsymbol{\sigma_{t}} \sim cauchy(0, 2.5)$ [@gelman]. We place a prior on the
 For comparative purposes, we present the estimated capacity trends when capacity is estimated cross sectionally in Figure 4. This cross sectional model uses the same indicators of capacity and was estimated using the lavaan package in r. We see that within agency type, there is high variance in the capacity between individual agencies. There is not an obvious difference between the trends of different agency types. Surprisingly, education agencies seem to have the lowest estimated average capacity despite employing a high number of people. 
 
 Figure 5 displays the capacity estimates for the dynamic longitudinal model. The random walk specification seems to have smoothed the capacity trends relative to the cross sectional model. For example, if we look at the EPA trend (the red line), we see that the capacity estimates bounce around in the cross sectional model, whereas there is a smooth increase in the longitudinal case. 
+
+Factor loadings and diagnostics are displayed for each of the indicators in Table 2. In the current specification, the signs of the coefficients are somewhat unexpected. For example, the factor loading on the log number of employees ($\beta_1$) is negative. It can be interpreted as: Every 1% increase in the number of employees from average, decreases the capacity of an agency by .15. Diagnostic statistics and plots reveal that the chains are not mixing well. Figure 6 shows that the chains for each $\beta$ coefficient are not overlapping. This may be an indication that our model is not identified. This observation is echoed in Table 2 where we see that the effective sample size is 2 and that the Rhats are much higher than 1. 
+
+Overall, both the cross sectional and longitudinal results do not quite align with expectations. The results presented here are meant to be a preliminary foundation for further analysis. First, more comprehensive theory regarding which indicators to include in the model is needed. The reason for chain non convergence needs to be investigated further. Several attempts to standardize the coefficients were tried, but were unsuccessful. Other formulations of the latent process besides the random walk could also be tested. Overall, while the dynamic bayesian framework outlined here is an improvement upon the cross sectional analysis, it could use further refinement. 
 
 ```{r, fig.height=8.5, fig.width=9}
 
@@ -445,7 +456,8 @@ p = df2 %>%
   ggtitle("Figure 4: Federal Agency Capacity: 1974 - 2013 (Cross Sectional)") +
   theme(strip.background =element_rect(fill="black")) +
   theme(strip.text = element_text(colour = 'white')) +
-  labs(caption = "Red is EPA")
+  labs(caption = "Red is EPA") +
+  theme(plot.title = element_text(size=12))
 
 p
 
@@ -637,7 +649,8 @@ dfff %>%
   ggtitle("Figure 5: Federal Agency Capacity: 1974 - 2013 (Longitudinal)") +
   theme(strip.background =element_rect(fill="black")) +
   theme(strip.text = element_text(colour = 'white')) +
-  labs(caption = "Red is EPA")
+  labs(caption = "Red is EPA")+
+  theme(plot.title = element_text(size=12))
 
 
 ```
@@ -655,15 +668,125 @@ sumdf2 = cbind(Indi, sumdf2)
 
 sumdf2 %>%
   kbl(booktabs = TRUE, linesep = "", caption = "Factor Loading Results (Longitudinal Model)") %>%
-kable_styling(latex_options = "striped")
+kable_styling(latex_options = c("striped", "HOLD_position"))
 
 
 ```
 
 ```{r}
 
-traceplot(kalman.test, pars = rownames(check)[8:14])
+traceplot(kalman.test, pars = rownames(check)[8:14]) + 
+  ggtitle("Figure 6: Traceplots for Factor Loadings")+
+  theme(plot.title = element_text(size=12))
 
 ```
 
 # References
+
+<div id="refs"></div>
+
+# Apeendix: Stan Code
+
+```{r, echo = TRUE, eval = FALSE}
+data {
+  int M; // number of agencies
+  int which_pos;
+  int Time; // number of years
+  int J; // number of measurements
+  real z[M, Time, J]; // observations
+  int start_time[M];
+  int end_time[M];
+}
+parameters {
+  vector[J] alpha;
+  vector[J] beta;
+  vector<lower=0>[J] sigma;
+  real x_start_mean;
+  real<lower=0> x_start_sd;
+  real<lower=0> change_sd;
+}
+model {
+  for (agency in 1:M) {
+    real x;//mean belief about latent process
+    real P; //variance belief about latent process
+    x = x_start_mean;
+    P = x_start_sd ^ 2;
+    for (t in start_time[agency]:end_time[agency]) {
+      P = P + change_sd;
+      for (j in 1:J) {
+	real ytilde;
+	real S;
+	ytilde = z[agency, t, j] - beta[j] * x - alpha[j]; 
+	S = (beta[j] ^ 2) * P + sigma[j] ^ 2;  the measurement error
+	target += - log(sigma) + 0.5 * ytilde ^ 2 / S; // normal log liklihood
+	if (j < J) {
+	  real K;
+	  K = P * beta[j] / S;
+	  x += K * ytilde;
+	  P *= 1 - K * beta[j]; // c++ synatx, p * this
+	}
+      }
+    }
+  }
+  alpha ~ normal(0, 10);
+  beta ~ normal(0, 10);
+  sigma ~ cauchy(0, 2.5);
+  x_start_mean ~ normal(0, 1);
+  x_start_sd ~ cauchy(0, 2.5);
+  change_sd ~ cauchy(0, 2.5);
+}
+generated quantities {
+  //vector[J] beta_standardized = beta;
+  matrix[M, Time] x_samples = rep_matrix(0.0, M, Time);
+  int observed_M = sum(end_time) - sum(start_time) + M;
+  for (agency in 1:M) {
+    real x;
+    real P;
+    vector[Time] x_mean;
+    vector[Time] x_var;
+    x = x_start_mean;
+    P = x_start_sd ^ 2;
+    for (t in start_time[agency]:end_time[agency]) {
+      P += change_sd;
+      for (j in 1:J) {
+	real ytilde;
+	real S;
+	real K;
+	ytilde = z[agency, t, j] - beta[j] * x - alpha[j];
+	S = (beta[j] ^ 2) * P + sigma[j] ^ 2;
+	K = P * beta[j] / S;
+	x = x + K * ytilde;
+	P = P * (1 - K * beta[j]);
+      }
+      x_mean[t] = x;
+      x_var[t] = P;
+    }
+    x_samples[agency, end_time[agency]] = normal_rng(x, sqrt(P));
+    for (t in 1:(end_time[agency]-start_time[agency])) {
+      real ytilde;
+      real K;
+      real S;
+      x = x_mean[end_time[agency] - t];
+      P = x_var[end_time[agency] - t];
+      ytilde = x_samples[agency, end_time[agency] - t + 1] - x;
+      S = P + change_sd ^ 2;
+      K = P / S;
+      x += K * ytilde;
+      P *= 1 - K;
+      x_samples[agency, end_time[agency] - t] = normal_rng(x, sqrt(P));
+    }
+  }
+  x_samples -= sum(x_samples) / observed_M;
+  
+  x_samples /= sqrt(sum(square(x_samples)) / (observed_M - 1)); 
+
+  
+}
+
+
+```
+
+# Appendix: R Code 
+
+```{r ref.label=knitr::all_labels(), echo=TRUE, eval=FALSE}
+```
