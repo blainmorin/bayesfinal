@@ -33,7 +33,7 @@ library(RColorBrewer)
 
 ## Introduction
 
-The capacity of a bureaucratic agency, or its resources and professionalization, play a key role in an agency’s “ability to induce residents, firms, and organizations to act in ways they would not in the absence of its regulatory and administrative presence” [@berch; @kurtz]. Measuring this “institutional power” of federal agencies is of interest to political scientists and policy researchers because it is an important input to governance outcomes [@berch]. This paper uses a dynamic latent variable approach to measure the capacity of federal agencies in the United States.
+The capacity of a bureaucratic agency, or its resources and professionalization, play a key role in an agency’s “ability to induce residents, firms, and organizations to act in ways they would not in the absence of its regulatory and administrative presence” [@berch; @kurtz]. Measuring this “institutional power” of federal agencies is of interest to political scientists and policy researchers because it is an important input to governance outcomes [@berch]. This paper uses a bayesian dynamic latent variable approach to measure the capacity of federal agencies in the United States.
 
 ## Data
 
@@ -344,23 +344,16 @@ $$  \mu_{i, t, j} = \alpha_{t,j} + \beta_{t,j} * Z_{i,t} $$
 where $y_{i,t,j}$ is the observed indicator, $j$, for agency $i$ at time $t$. We assume that these indicators are distributed normally with mean $\mu_{i,t,j}$ and variance $\sigma_{t,j}^2$. $\alpha_{t,j}$ is the intercept for indicator $j$ at time $t$, $\beta_{t,j}$ are the factor loadings for indicator $j$ at time $t$, and $Z_{i,t}$ is the latent capacity of agency $i$ at time $t$.  
 
 As is, the cross sectional model cannot be identified without the identification restriction:
-
 $$  Z_{i,t} \sim \mathcal{N}(0, 1) $$
-
 This identification restriction is arbitrary, as it simply sets the scale of the latent variable [@jackman].
 
-* This specification does not account for covariance between time points
+However, the cross sectional analysis described above does not account for the covariance between capacity measurements across time. We account for this longitudinal dimension using a bayesian framework, which is well suited to data that spans a long time dimension [@jackman]. Following Jackman [-@jackman]: 
 
-* Jackman: Dynamic measurement model in Bayesian framework allows inference over a longer longitudinal dimension.
+$$  \mathbf{y}_{i,t} = \mathbf{F}_{i, t} \mathbf{Z_{i,t}} +  \boldsymbol{\epsilon}_{i,t} $$
+where $\mathbf{y}_{i,t}$ is a vector of indicators. $\mathbf{F}_{i,t}$ is a state transition matrix, which in our scenario is assumed to be equal to the identity matrix. Moreover, the latent process evolves such that the latent state at time $t$ is a function of the state at time $t-1$:
+$$  \mathbf{Z}_{i,t} = \mathbf{G}_{i,t}\mathbf{Z_{i, t-1}} + \mathbf{u}_{i,t} $$
+For our capacity process, we start by assuming that capacity of an agency follows a random walk, or in other words that $\mathbf{G}_{i,t} = \mathbf{I}, \forall i,t$ [@jackman]. We estimate this model in rstan using a marginal likelihood Kalman filter.
 
-$$  \mathbf{y}_{i,t} = \mathbf{F}_{i, t} \mathbf{Z_{i,t}} + \mathbf{W}_{i,t}\boldsymbol\delta_{i,t} + \boldsymbol{\epsilon}_{i,t} $$
-
-* Latent variable evolves:
-
-$$  \mathbf{Z}_{i,t} = \mathbf{G}_{i,t}\mathbf{Z_{i, t-1}} + \mathbf{A}_t \mathbf{x}_{i,t} + \mathbf{u}_{i,t} $$
-
-* Random Walk model sets $\mathbf{G}_{i,t} = \mathbf{I}, \forall i,t$
-* Say used Kalman filter, marginal likelihood with respect to the latent variable. 
 
 ## Results
 
