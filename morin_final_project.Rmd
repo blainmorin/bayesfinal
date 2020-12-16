@@ -336,15 +336,18 @@ ggcorrplot(corr, hc.order = TRUE, type = "lower",
 
 ## Empirical Strategy
 
-* Motivation for latent variable (we don't observe capacity, only theoretical indicators)
-* Cross Sectional Latent form (should I even include this?):
+Our goal is to make inferences about the capacity of federal agencies. However, capacity is not directly observable. Instead, the indicators described above are manifestations of an agency's capacity; the variables we observe are signals of the underlying latent capacity of an agency. Taken cross sectionally, the latent model takes the form:
 
 $$  y_{i,t,j} \sim \mathcal{N}(\mu_{i,t,j}, \sigma_{t, j} ^2) $$
 $$  \mu_{i, t, j} = \alpha_{t,j} + \beta_{t,j} * Z_{i,t} $$
 
-Identification restriction:
+where $y_{i,t,j}$ is the observed indicator, $j$, for agency $i$ at time $t$. We assume that these indicators are distributed normally with mean $\mu_{i,t,j}$ and variance $\sigma_{t,j}^2$. $\alpha_{t,j}$ is the intercept for indicator $j$ at time $t$, $\beta_{t,j}$ are the factor loadings for indicator $j$ at time $t$, and $Z_{i,t}$ is the latent capacity of agency $i$ at time $t$.  
+
+As is, the cross sectional model cannot be identified without the identification restriction:
 
 $$  Z_{i,t} \sim \mathcal{N}(0, 1) $$
+
+This identification restriction is arbitrary, as it simply sets the scale of the latent variable [@jackman].
 
 * This specification does not account for covariance between time points
 
@@ -360,5 +363,10 @@ $$  \mathbf{Z}_{i,t} = \mathbf{G}_{i,t}\mathbf{Z_{i, t-1}} + \mathbf{A}_t \mathb
 * Say used Kalman filter, marginal likelihood with respect to the latent variable. 
 
 ## Results
+
+```{r}
+
+
+```
 
 # References
